@@ -92,24 +92,21 @@ def calculate_ride_calories(
     heart_rate_avg: Optional[int] = None
 ) -> float:
     """
-    Calcola le calorie bruciate durante una sessione di cyclette considerando:
-    - Peso (kg), Altezza (cm), Età (anni), Sesso e BMI dell'utente
-    - Durata e velocità media
-    - Livello di resistenza della cyclette (da 1 a 8)
-    - Frequenza cardiaca media (Formula scientifica Keytel, se rilevata)
+    Calcola le calorie bruciate durante una sessione di cyclette basandosi su
+    modelli biomeccanici reali di potenza meccanica (Watts) e rendimento metabolico umano (~23%).
+    Evita le sovrastime tipiche del modello MET generico per pesi corporei elevati su attrezzi a sella.
     """
-    weight = profile.current_weight_kg if profile and profile.current_weight_kg else 70.0
+    weight = profile.current_weight_kg if profile and profile.current_weight_kg else 75.0
     height = profile.height_cm if profile and profile.height_cm else 175.0
     age = calculate_age(profile.birth_date) if profile else 30
     age = age or 30
     gender = profile.gender if profile and profile.gender else "male"
-    bmi, _ = calculate_bmi(weight, height)
 
     hours = duration_seconds / 3600.0
     if hours <= 0:
         return 0.0
 
-    # 1. Se è disponibile la frequenza cardiaca: Formula di Keytel (gold standard)
+    # 1. Se è disponibile la frequenza cardiaca: Formula di Keytel (gold standard HR)
     if heart_rate_avg and heart_rate_avg > 50:
         if gender.lower() == "female":
             cal_per_min = (-20.4022 + (0.4472 * heart_rate_avg) - (0.1263 * weight) + (0.074 * age)) / 4.184
@@ -117,34 +114,34 @@ def calculate_ride_calories(
             cal_per_min = (-55.0969 + (0.6309 * heart_rate_avg) + (0.1988 * weight) + (0.2017 * age)) / 4.184
         return max(1.0, round(cal_per_min * (duration_seconds / 60.0), 1))
 
-    # 2. Modello metabolico ACSM con correzione per resistenza (1-8), velocità e BMI
-    if avg_speed_kmh < 15.0:
-        base_met = 4.8
-    elif avg_speed_kmh < 20.0:
-        base_met = 6.8 + (avg_speed_kmh - 15.0) * 0.4
-    elif avg_speed_kmh < 25.0:
-        base_met = 8.8 + (avg_speed_kmh - 20.0) * 0.44
-    elif avg_speed_kmh < 30.0:
-        base_met = 11.0 + (avg_speed_kmh - 25.0) * 0.3
-    else:
-        base_met = 12.5 + min(3.0, (avg_speed_kmh - 30.0) * 0.2)
+    # 2. Modello di potenza meccanica per cyclette magnetica (Watts)
+    # A 15 km/h: ~67W base; a 18 km/h: ~78W base; a 22 km/h: ~94W base
+    clamped_speed = max(3.0, min(45.0, avg_speed_kmh))
+    base_watts = 10.0 + 3.8 * clamped_speed
 
-    # Ogni livello di resistenza (da 1 a 8) aggiunge circa il 14% di carico di potenza
+    # Resistenza magnetica (livelli 1 a 8):
+    # Livello 1: 0.75x (freno aperto); Livello 8: 1.39x (freno chiuso, carico sostenuto)
     clamped_res = max(1, min(8, resistance_level))
-    resistance_factor = 1.0 + (clamped_res - 1) * 0.14
+    res_factor = 0.75 + (clamped_res - 1) * 0.0914  # da 0.75 (liv. 1) a 1.39 (liv. 8)
+    mech_watts = base_watts * res_factor
 
-    # Correzione BMI (il costo metabolico aumenta leggermente per masse corporee maggiori)
-    bmi_factor = 1.0 + max(-0.1, min(0.25, (bmi - 22.0) * 0.012))
+    # Spesa metabolica da potenza meccanica:
+    # 1 Watt-ora meccanico richiede circa 3.65 kcal di spesa metabolica (efficienza ~23.5%)
+    power_kcal_per_hour = mech_watts * 3.65
 
-    effective_met = base_met * resistance_factor * bmi_factor
+    # Quota metabolica basale e lavoro posturale orario (BMR / 24)
+    bmr = calculate_bmr(weight, height, age, gender)
+    bmr_per_hour = bmr / 24.0
 
-    # Formula ACSM: Kcal = MET * 3.5 * weight(kg) / 200 * duration(minutes)
-    calories = (effective_met * 3.5 * weight / 200.0) * (duration_seconds / 60.0)
+    # Dispendio orario complessivo
+    total_kcal_per_hour = power_kcal_per_hour + bmr_per_hour
+    calories = total_kcal_per_hour * hours
+
     return round(max(1.0, calories), 1)
 
 def calculate_journey_calories(distance_km: float, profile: Optional[UserProfile]) -> int:
-    """Calcola le calorie stimate necessarie per percorrere una determinata distanza sulla cyclette"""
-    weight = profile.current_weight_kg if profile and profile.current_weight_kg else 70.0
-    # Consumo medio su cyclette a ritmo costante: ~0.38 kcal/kg per km
-    kcal_per_km = weight * 0.38
+    """Calcola le calorie realistiche stimate per percorrere una determinata distanza sulla cyclette"""
+    weight = profile.current_weight_kg if profile and profile.current_weight_kg else 75.0
+    # Consumo medio realistico su cyclette: ~18-28 kcal per km in base al peso
+    kcal_per_km = 16.0 + max(0.0, (weight - 60.0)) * 0.12
     return int(round(distance_km * kcal_per_km))

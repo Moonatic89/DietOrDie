@@ -215,17 +215,27 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
 
           <div className="grid grid-cols-4 gap-2 text-center">
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">Velocità</span>
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">
+                {activeRide.current_speed_kmh && activeRide.current_speed_kmh > 0 ? 'Velocità' : 'Media'}
+              </span>
               <span className="text-lg font-black text-emerald-400 font-mono">
-                {activeRide.current_speed_kmh ? activeRide.current_speed_kmh.toFixed(1) : activeRide.avg_speed_kmh.toFixed(1)}
+                {activeRide.current_speed_kmh && activeRide.current_speed_kmh > 0
+                  ? activeRide.current_speed_kmh.toFixed(1)
+                  : activeRide.avg_speed_kmh.toFixed(1)}
               </span>
               <span className="text-[9px] text-zinc-500 block">km/h</span>
             </div>
 
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">Cadenza</span>
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">
+                {activeRide.rpm && activeRide.rpm > 0 ? 'Cadenza' : 'Cad. Media'}
+              </span>
               <span className="text-lg font-black text-amber-400 font-mono">
-                {activeRide.rpm ? Math.round(activeRide.rpm) : '--'}
+                {activeRide.rpm && activeRide.rpm > 0
+                  ? Math.round(activeRide.rpm)
+                  : (activeRide.duration_seconds > 0
+                      ? Math.round((activeRide.distance_km * 1000 / 3.50) / (activeRide.duration_seconds / 60))
+                      : '0')}
               </span>
               <span className="text-[9px] text-zinc-500 block">RPM</span>
             </div>
