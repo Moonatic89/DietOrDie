@@ -49,8 +49,8 @@ constexpr uint32_t FINISH_TIMEOUT_MS   = 60000; // Fine sessione se fermi da 60s
 const char* USERS[] = {"mario", "anna"};
 int currentUserIndex = 0; // 0 = Mario, 1 = Anna
 
-// Livello di resistenza meccanica della cyclette (da 1 a 8)
-int resistanceLevel = 3;
+// Livello di resistenza meccanica della cyclette (da 1 a 8, tarato su cyclette.ino)
+int resistanceLevel = 8;
 
 // ================= STATO INTERNO =================
 WiFiClient espClient;
@@ -160,17 +160,24 @@ void sendMqttTelemetry(bool isFinished = false) {
   // 2. Velocita media complessiva
   const float avgSpeedKmh = elapsedHours > 0 ? (distanceKm / elapsedHours) : 0.0f;
 
-  // 3. Velocita istantanea e Cadenza (RPM) basate sul delta intervallo
+  // 3. Velocita istantanea e Cadenza (RPM) ad altissima precisione (micros)
   float currentSpeedKmh = 0.0f;
   float rpm = 0.0f;
 
   const uint32_t msSinceLastPulse = (micros() - lastPulseUs) / 1000;
-  if (msSinceLastPulse <= STOP_TIMEOUT_MS && deltaPulses > 0) {
-    const float deltaSec = (now - lastMqttSendMs) / 1000.0f;
-    if (deltaSec > 0) {
-      const float meters = deltaPulses * METERS_PER_PULSE;
-      currentSpeedKmh = (meters / deltaSec) * 3.6f;
-      rpm = (deltaPulses / deltaSec) * 60.0f;
+  if (msSinceLastPulse <= STOP_TIMEOUT_MS) {
+    const uint32_t pulseDeltaUs = (lastPulseUs > prevPulseUs) ? (lastPulseUs - prevPulseUs) : 0;
+    if (pulseDeltaUs > 0 && prevPulseUs > 0) {
+      // Calcolo istantaneo fluido basato sul tempo reale tra le ultime 2 pedalate
+      currentSpeedKmh = (METERS_PER_PULSE * 3600000.0f) / (float)pulseDeltaUs;
+      rpm = 60000000.0f / (float)pulseDeltaUs;
+    } else if (deltaPulses > 0) {
+      // Fallback sul delta della finestra di invio
+      const float deltaSec = (now - lastMqttSendMs) / 1000.0f;
+      if (deltaSec > 0) {
+        currentSpeedKmh = (deltaPulses * METERS_PER_PULSE / deltaSec) * 3.6f;
+        rpm = (deltaPulses / deltaSec) * 60.0f;
+      }
     }
   }
 
