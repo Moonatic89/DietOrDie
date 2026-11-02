@@ -19,6 +19,9 @@ services:
       - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-mosquitto}
       - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
       - DOMAIN=${DOMAIN:-dietordie.duckdns.org}
+    networks:
+      - default
+      - edge
     depends_on:
       - mosquitto
 
@@ -28,7 +31,15 @@ services:
     restart: unless-stopped
     ports:
       - "1883:1883"
-      - "127.0.0.1:9001:9001"
     volumes:
       - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/data:/mosquitto/data
+    networks:
+      - default
+
+networks:
+  default:
+  edge:
+    external: true
+    name: public-edge
+
