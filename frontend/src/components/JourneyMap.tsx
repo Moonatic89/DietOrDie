@@ -26,12 +26,14 @@ interface JourneyMapProps {
   onProgressUpdated?: () => void;
   celebration?: MilestoneUnlockCelebration | null;
   onClearCelebration?: () => void;
+  liveProgress?: UserJourneyProgress | null;
 }
 
 export const JourneyMap: React.FC<JourneyMapProps> = ({
   onProgressUpdated,
   celebration,
-  onClearCelebration
+  onClearCelebration,
+  liveProgress
 }) => {
   const [allJourneys, setAllJourneys] = useState<Journey[]>([]);
   const [progress, setProgress] = useState<UserJourneyProgress | null>(null);
@@ -54,6 +56,12 @@ export const JourneyMap: React.FC<JourneyMapProps> = ({
   useEffect(() => {
     fetchJourneyData();
   }, []);
+
+  useEffect(() => {
+    if (liveProgress) {
+      setProgress(liveProgress);
+    }
+  }, [liveProgress]);
 
   useEffect(() => {
     if (celebration) {

@@ -19,6 +19,7 @@ from app.auth import get_current_user
 from app.services.gamification import record_ride_progress, format_progress_response
 from app.services.vision import analyze_display_image
 from app.services.metrics import calculate_ride_calories
+from app.routers.websocket import ws_manager
 
 router = APIRouter(prefix="/rides", tags=["rides"])
 
@@ -128,7 +129,7 @@ def get_active_ride(
 
 
 @router.post("/esp32", response_model=RideLogResultResponse)
-def log_esp32_ride(
+async def log_esp32_ride(
     payload: ESP32Payload,
     x_api_key: Optional[str] = Header(None),
     db: Session = Depends(get_db)
@@ -233,11 +234,35 @@ def log_esp32_ride(
             if prog:
                 progress = format_progress_response(prog, db)
 
-        return RideLogResultResponse(
+        res = RideLogResultResponse(
             ride=active_ride,
             progress=progress,
             newly_unlocked_milestone=celebration
         )
+
+        try:
+            ws_payload = {
+                "type": "ride_tick",
+                "ride": {
+                    "id": active_ride.id,
+                    "user_id": active_ride.user_id,
+                    "username": user.username,
+                    "duration_seconds": active_ride.duration_seconds,
+                    "distance_km": active_ride.distance_km,
+                    "avg_speed_kmh": active_ride.avg_speed_kmh,
+                    "current_speed_kmh": active_ride.current_speed_kmh,
+                    "rpm": active_ride.rpm,
+                    "calories_burned": active_ride.calories_burned,
+                    "resistance_level": active_ride.resistance_level
+                },
+                "progress": progress.model_dump() if progress else None,
+                "celebration": celebration.model_dump() if celebration else None
+            }
+            await ws_manager.broadcast(ws_payload)
+        except Exception:
+            pass
+
+        return res
 
     # 2. Se non esiste una sessione attiva negli ultimi 60s, crea una NUOVA sessione
     generated_uid = session_uid or f"esp32_{user.id}_{int(datetime.utcnow().timestamp())}"
@@ -266,11 +291,35 @@ def log_esp32_ride(
         distance_km=dist_km
     )
 
-    return RideLogResultResponse(
+    res = RideLogResultResponse(
         ride=ride,
         progress=progress,
         newly_unlocked_milestone=celebration
     )
+
+    try:
+        ws_payload = {
+            "type": "ride_tick",
+            "ride": {
+                "id": ride.id,
+                "user_id": ride.user_id,
+                "username": user.username,
+                "duration_seconds": ride.duration_seconds,
+                "distance_km": ride.distance_km,
+                "avg_speed_kmh": ride.avg_speed_kmh,
+                "current_speed_kmh": ride.current_speed_kmh,
+                "rpm": ride.rpm,
+                "calories_burned": ride.calories_burned,
+                "resistance_level": ride.resistance_level
+            },
+            "progress": progress.model_dump() if progress else None,
+            "celebration": celebration.model_dump() if celebration else None
+        }
+        await ws_manager.broadcast(ws_payload)
+    except Exception:
+        pass
+
+    return res
 
 
 @router.post("/analyze-display", response_model=AIAnalyzeDisplayResponse)

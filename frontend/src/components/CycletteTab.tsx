@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, RideSession, MilestoneUnlockCelebration } from '../types';
+import { User, RideSession, MilestoneUnlockCelebration, UserJourneyProgress } from '../types';
 import { getRides, logRide, getActiveRide } from '../api';
 import { JourneyMap } from './JourneyMap';
 import {
@@ -25,6 +25,7 @@ interface CycletteTabProps {
 export const CycletteTab: React.FC<CycletteTabProps> = ({ user }) => {
   const [rides, setRides] = useState<RideSession[]>([]);
   const [activeRide, setActiveRide] = useState<RideSession | null>(null);
+  const [liveProgress, setLiveProgress] = useState<UserJourneyProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [celebration, setCelebration] = useState<MilestoneUnlockCelebration | null>(null);
@@ -70,6 +71,9 @@ export const CycletteTab: React.FC<CycletteTabProps> = ({ user }) => {
             if (data.type === 'ride_tick' && data.ride) {
               if (!data.ride.username || data.ride.username === user.username) {
                 setActiveRide(data.ride);
+                if (data.progress) {
+                  setLiveProgress(data.progress);
+                }
                 if (data.celebration) {
                   setCelebration(data.celebration);
                 }
@@ -257,6 +261,7 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
 
       {/* Interactive Quest Map */}
       <JourneyMap
+        liveProgress={liveProgress}
         onProgressUpdated={fetchRides}
         celebration={celebration}
         onClearCelebration={() => setCelebration(null)}
