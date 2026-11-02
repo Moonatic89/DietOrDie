@@ -38,7 +38,7 @@ const char* ESP32_API_KEY    = "esp32-dietordie-secret-token";
 #endif
 
 // ================= PARAMETRI CYCLETTE =================
-constexpr float METERS_PER_PULSE       = 5.30f; // 5.30 metri virtuali per giro di pedale
+constexpr float METERS_PER_PULSE       = 3.50f; // 3.50 metri virtuali per giro di pedale (taratura realistica cyclette)
 constexpr uint32_t REED_DEBOUNCE_US    = 8000;  // 8 ms antirimbalzo
 constexpr uint32_t SEND_INTERVAL_MS    = 3000;  // Invio dati ogni 3 secondi durante la pedalata
 constexpr uint32_t STOP_TIMEOUT_MS     = 3500;  // Velocità scende a 0 dopo 3.5s senza impulsi
