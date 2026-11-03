@@ -6,6 +6,7 @@ import httpx
 from app.config import settings
 from app.models import BodyCompositionLog, UserProfile
 from app.schemas import AIProgressReviewResponse
+from app.services.metrics import calculate_age
 
 
 def clean_json_text(text: str) -> str:
@@ -167,11 +168,11 @@ async def analyze_body_composition_progress(
     profile_info = {}
     if profile:
         profile_info = {
-            "eta": profile.age,
+            "eta": calculate_age(profile.birth_date) if profile.birth_date else None,
             "altezza_cm": profile.height_cm,
             "genere": profile.gender,
             "peso_target_kg": profile.target_weight_kg,
-            "calorie_target": profile.target_calories
+            "calorie_target": profile.daily_calorie_target
         }
 
     system_prompt = (

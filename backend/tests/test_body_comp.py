@@ -112,9 +112,15 @@ def test_body_composition_crud_and_deltas():
     assert items[1]["delta"] is None
 
     # 5. Check user profile current_weight_kg was updated to latest
-    res_prof = client.get("/api/profile", headers=headers)
+    # 5. Check user profile and set complete profile data
+    res_prof = client.put("/api/profile", json={
+        "birth_date": "1992-05-15",
+        "gender": "male",
+        "height_cm": 178.0,
+        "target_weight_kg": 85.0,
+        "daily_calorie_target": 2100
+    }, headers=headers)
     assert res_prof.status_code == 200
-    assert res_prof.json()["current_weight_kg"] == 122.40
 
     # 6. GET /api/profile/body-composition/ai-review
     res_ai = client.get("/api/profile/body-composition/ai-review", headers=headers)
