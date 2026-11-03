@@ -200,9 +200,10 @@ async def analyze_body_composition_progress(
     )
 
     candidate_models = [
-        getattr(settings, "OPENROUTER_TEXT_MODEL", "meta-llama/llama-3.3-70b-instruct:free"),
-        "google/gemini-2.0-flash-exp:free",
-        settings.OPENROUTER_MODEL
+        getattr(settings, "OPENROUTER_TEXT_MODEL", "nvidia/nemotron-3.5-lightning:free"),
+        "nvidia/nemotron-3.5-lightning:free",
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free"
     ]
 
     for model_name in candidate_models:
