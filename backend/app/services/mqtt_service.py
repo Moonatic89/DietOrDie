@@ -138,8 +138,7 @@ class MQTTService:
                     RideSession.user_id == user.id,
                     RideSession.session_uid == session_uid
                 ).first()
-
-            if not active_ride:
+            else:
                 latest_ride = db.query(RideSession).filter(
                     RideSession.user_id == user.id,
                     RideSession.session_uid.isnot(None),

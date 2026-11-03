@@ -124,7 +124,7 @@ def get_active_ride(
     ride = db.query(RideSession).filter(
         RideSession.user_id == current_user.id,
         RideSession.updated_at >= cutoff
-    ).order_by(RideSession.updated_at.desc()).first()
+    ).order_by(RideSession.updated_at.desc(), RideSession.id.desc()).first()
     return ride
 
 

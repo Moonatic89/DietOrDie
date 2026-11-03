@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # AI Vision Keys (OpenRouter free tier prioritized)
     OPENROUTER_API_KEY: str | None = os.getenv("OPENROUTER_API_KEY", None)
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-11b-vision-instruct:free")
+    OPENROUTER_TEXT_MODEL: str = os.getenv("OPENROUTER_TEXT_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
     
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY", None)
     OPENAI_API_KEY: str | None = os.getenv("OPENAI_API_KEY", None)

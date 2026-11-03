@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, WeightLog, HealthMetrics } from '../types';
 import { updateProfile, getHealthMetrics, getWeightHistory, addWeightLog } from '../api';
+import { BodyCompositionSection } from './BodyCompositionSection';
 import {
   User as UserIcon,
   Activity,
@@ -163,6 +164,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({ user, onProfileUpdated }
           </div>
         </div>
       </div>
+
+      {/* Bioimpedance Smart Scale & AI Progress Section */}
+      <BodyCompositionSection
+        onWeightChanged={() => {
+          fetchData();
+          onProfileUpdated();
+        }}
+      />
 
       {/* Quick Weight Logger */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl">

@@ -16,6 +16,7 @@ class User(Base):
 
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     weight_logs = relationship("WeightLog", back_populates="user", cascade="all, delete-orphan", order_by="desc(WeightLog.recorded_at)")
+    body_compositions = relationship("BodyCompositionLog", back_populates="user", cascade="all, delete-orphan", order_by="desc(BodyCompositionLog.recorded_at)")
     meals = relationship("MealEntry", back_populates="user", cascade="all, delete-orphan", order_by="desc(MealEntry.created_at)")
     rides = relationship("RideSession", back_populates="user", cascade="all, delete-orphan", order_by="desc(RideSession.created_at)")
     journey_progress = relationship("UserJourneyProgress", back_populates="user", cascade="all, delete-orphan")
@@ -50,6 +51,34 @@ class WeightLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="weight_logs")
+
+
+class BodyCompositionLog(Base):
+    __tablename__ = "body_composition_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    recorded_at = Column(Date, default=date.today, nullable=False, index=True)
+    
+    # 13 Parametri della bilancia bioimpedenziometrica
+    weight_kg = Column(Float, nullable=False)
+    bmi = Column(Float, nullable=True)
+    body_fat_pct = Column(Float, nullable=True)
+    subcutaneous_fat_pct = Column(Float, nullable=True)
+    visceral_fat = Column(Float, nullable=True)
+    muscle_mass_kg = Column(Float, nullable=True)
+    skeletal_muscle_pct = Column(Float, nullable=True)
+    bone_mass_kg = Column(Float, nullable=True)
+    fat_free_mass_kg = Column(Float, nullable=True)
+    metabolic_age = Column(Integer, nullable=True)
+    bmr_kcal = Column(Float, nullable=True)
+    body_water_pct = Column(Float, nullable=True)
+    protein_pct = Column(Float, nullable=True)
+    
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="body_compositions")
 
 
 class MealEntry(Base):

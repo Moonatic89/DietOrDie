@@ -164,3 +164,72 @@ export interface RideLogResult {
   progress?: UserJourneyProgress;
   newly_unlocked_milestone?: MilestoneUnlockCelebration;
 }
+
+export interface BodyCompositionDelta {
+  days?: number;
+  weight_kg?: number;
+  bmi?: number;
+  body_fat_pct?: number;
+  subcutaneous_fat_pct?: number;
+  visceral_fat?: number;
+  muscle_mass_kg?: number;
+  skeletal_muscle_pct?: number;
+  bone_mass_kg?: number;
+  fat_free_mass_kg?: number;
+  body_water_pct?: number;
+  protein_pct?: number;
+}
+
+export interface BodyCompositionLog {
+  id: number;
+  user_id: number;
+  recorded_at: string;
+  weight_kg: number;
+  bmi?: number;
+  body_fat_pct?: number;
+  subcutaneous_fat_pct?: number;
+  visceral_fat?: number;
+  muscle_mass_kg?: number;
+  skeletal_muscle_pct?: number;
+  bone_mass_kg?: number;
+  fat_free_mass_kg?: number;
+  metabolic_age?: number;
+  bmr_kcal?: number;
+  body_water_pct?: number;
+  protein_pct?: number;
+  notes?: string;
+  created_at: string;
+  delta?: BodyCompositionDelta;
+}
+
+export interface BodyCompositionCreateInput {
+  recorded_at?: string;
+  weight_kg: number;
+  bmi?: number;
+  body_fat_pct?: number;
+  subcutaneous_fat_pct?: number;
+  visceral_fat?: number;
+  muscle_mass_kg?: number;
+  skeletal_muscle_pct?: number;
+  bone_mass_kg?: number;
+  fat_free_mass_kg?: number;
+  metabolic_age?: number;
+  bmr_kcal?: number;
+  body_water_pct?: number;
+  protein_pct?: number;
+  notes?: string;
+}
+
+export interface BodyCompositionBulkInput {
+  recorded_at?: string;
+  raw_json?: string;
+  data?: Record<string, any>;
+}
+
+export interface AIProgressReview {
+  review_markdown: string;
+  overall_trend: string;
+  key_metrics_summary?: Record<string, any>;
+  recommendations: string[];
+}
+

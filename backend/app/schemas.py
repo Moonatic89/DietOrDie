@@ -1,6 +1,6 @@
 from datetime import date, datetime
-from typing import List, Optional, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Any, Dict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 # --- AUTH & USER ---
 class UserRegister(BaseModel):
@@ -62,6 +62,139 @@ class WeightLogResponse(BaseModel):
     recorded_at: date
     notes: Optional[str] = None
     created_at: datetime
+
+# --- BODY COMPOSITION (SMART SCALE / BIOIMPEDANCE) ---
+class BodyCompositionBase(BaseModel):
+    recorded_at: Optional[date] = None
+    weight_kg: float
+    bmi: Optional[float] = None
+    body_fat_pct: Optional[float] = None
+    subcutaneous_fat_pct: Optional[float] = None
+    visceral_fat: Optional[float] = None
+    muscle_mass_kg: Optional[float] = None
+    skeletal_muscle_pct: Optional[float] = None
+    bone_mass_kg: Optional[float] = None
+    fat_free_mass_kg: Optional[float] = None
+    metabolic_age: Optional[int] = None
+    bmr_kcal: Optional[float] = None
+    body_water_pct: Optional[float] = None
+    protein_pct: Optional[float] = None
+    notes: Optional[str] = None
+
+class BodyCompositionCreate(BodyCompositionBase):
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_keys_and_values(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        
+        alias_map = {
+            "peso": "weight_kg",
+            "peso_kg": "weight_kg",
+            "weight": "weight_kg",
+            "grasso": "body_fat_pct",
+            "grasso_corporeo": "body_fat_pct",
+            "percentuale_grasso_corporeo": "body_fat_pct",
+            "body_fat": "body_fat_pct",
+            "percentuale_di_grasso_corporeo": "body_fat_pct",
+            "grasso_sottocutaneo": "subcutaneous_fat_pct",
+            "subcutaneous_fat": "subcutaneous_fat_pct",
+            "grasso_viscerale": "visceral_fat",
+            "viscerale": "visceral_fat",
+            "visceral_fat": "visceral_fat",
+            "massa_muscolare": "muscle_mass_kg",
+            "muscolo": "muscle_mass_kg",
+            "muscle_mass": "muscle_mass_kg",
+            "percentuale_muscolo_scheletrica": "skeletal_muscle_pct",
+            "percentuale_muscoloscheletrica": "skeletal_muscle_pct",
+            "muscolo_scheletrico": "skeletal_muscle_pct",
+            "skeletal_muscle": "skeletal_muscle_pct",
+            "massa_ossea": "bone_mass_kg",
+            "ossa": "bone_mass_kg",
+            "bone_mass": "bone_mass_kg",
+            "peso_senza_grassi": "fat_free_mass_kg",
+            "peso_corporeo_senza_grassi": "fat_free_mass_kg",
+            "massa_magra": "fat_free_mass_kg",
+            "fat_free_mass": "fat_free_mass_kg",
+            "ffm": "fat_free_mass_kg",
+            "eta_metabolica": "metabolic_age",
+            "età_metabolica": "metabolic_age",
+            "metabolic_age": "metabolic_age",
+            "bmr": "bmr_kcal",
+            "bmr_kcal": "bmr_kcal",
+            "metabolismo_basale": "bmr_kcal",
+            "acqua": "body_water_pct",
+            "acqua_corporea": "body_water_pct",
+            "percentuale_acqua": "body_water_pct",
+            "percentuale_di_acqua_corporea": "body_water_pct",
+            "body_water": "body_water_pct",
+            "proteine": "protein_pct",
+            "percentuale_proteica": "protein_pct",
+            "protein": "protein_pct",
+            "data": "recorded_at",
+            "date": "recorded_at",
+            "note": "notes"
+        }
+        
+        normalized = {}
+        for k, v in data.items():
+            key_clean = str(k).strip().lower().replace(" ", "_").replace("-", "_")
+            target_key = alias_map.get(key_clean, key_clean)
+            
+            if isinstance(v, str):
+                v_clean = v.strip().replace("kg", "").replace("%", "").replace("kcal", "").strip()
+                v_clean = v_clean.replace(",", ".")
+                if target_key in ["metabolic_age"]:
+                    try:
+                        v = int(float(v_clean))
+                    except (ValueError, TypeError):
+                        pass
+                elif target_key in ["bmr_kcal"]:
+                    try:
+                        v = float(v_clean)
+                    except (ValueError, TypeError):
+                        pass
+                elif target_key not in ["recorded_at", "notes"]:
+                    try:
+                        v = float(v_clean)
+                    except (ValueError, TypeError):
+                        pass
+            normalized[target_key] = v
+        return normalized
+
+class BodyCompositionBulkInput(BaseModel):
+    recorded_at: Optional[date] = None
+    raw_json: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+
+class BodyCompositionDelta(BaseModel):
+    days: Optional[int] = None
+    weight_kg: Optional[float] = None
+    bmi: Optional[float] = None
+    body_fat_pct: Optional[float] = None
+    subcutaneous_fat_pct: Optional[float] = None
+    visceral_fat: Optional[float] = None
+    muscle_mass_kg: Optional[float] = None
+    skeletal_muscle_pct: Optional[float] = None
+    bone_mass_kg: Optional[float] = None
+    fat_free_mass_kg: Optional[float] = None
+    body_water_pct: Optional[float] = None
+    protein_pct: Optional[float] = None
+
+class BodyCompositionResponse(BodyCompositionBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    recorded_at: date
+    created_at: datetime
+    delta: Optional[BodyCompositionDelta] = None
+
+class AIProgressReviewResponse(BaseModel):
+    review_markdown: str
+    overall_trend: str
+    key_metrics_summary: Dict[str, Any] = {}
+    recommendations: List[str] = []
 
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

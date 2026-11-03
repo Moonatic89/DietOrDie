@@ -10,7 +10,11 @@ import {
   RideLogResult,
   UserJourneyProgress,
   Journey,
-  WeightLog
+  WeightLog,
+  BodyCompositionLog,
+  BodyCompositionCreateInput,
+  BodyCompositionBulkInput,
+  AIProgressReview
 } from './types';
 
 const API_BASE = '/api';
@@ -202,3 +206,33 @@ export async function activateJourney(journeyId: number): Promise<UserJourneyPro
     method: 'POST',
   });
 }
+
+// --- BIOIMPEDANCE BODY COMPOSITION ---
+export async function getBodyCompositionLogs(): Promise<BodyCompositionLog[]> {
+  return request<BodyCompositionLog[]>('/profile/body-composition');
+}
+
+export async function addBodyCompositionLog(data: BodyCompositionCreateInput): Promise<BodyCompositionLog> {
+  return request<BodyCompositionLog>('/profile/body-composition', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addBodyCompositionBulkJson(bulk: BodyCompositionBulkInput): Promise<BodyCompositionLog> {
+  return request<BodyCompositionLog>('/profile/body-composition/bulk-json', {
+    method: 'POST',
+    body: JSON.stringify(bulk),
+  });
+}
+
+export async function deleteBodyCompositionLog(id: number): Promise<void> {
+  return request<void>(`/profile/body-composition/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getBodyCompositionAiReview(): Promise<AIProgressReview> {
+  return request<AIProgressReview>('/profile/body-composition/ai-review');
+}
+
