@@ -14,7 +14,8 @@ import {
   BodyCompositionLog,
   BodyCompositionCreateInput,
   BodyCompositionBulkInput,
-  AIProgressReview
+  AIProgressReview,
+  RidePerformanceData
 } from './types';
 
 const API_BASE = '/api';
@@ -190,6 +191,23 @@ export async function analyzeDisplayPhoto(file: File): Promise<{
   return request('/rides/analyze-display', {
     method: 'POST',
     body: formData,
+  });
+}
+
+export async function mergeRides(rideIds: number[]): Promise<RideSession> {
+  return request<RideSession>('/rides/merge', {
+    method: 'POST',
+    body: JSON.stringify({ ride_ids: rideIds }),
+  });
+}
+
+export async function getRidePerformance(rideId: number): Promise<RidePerformanceData> {
+  return request<RidePerformanceData>(`/rides/${rideId}/performance`);
+}
+
+export async function deleteRide(rideId: number): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>(`/rides/${rideId}`, {
+    method: 'DELETE',
   });
 }
 

@@ -98,6 +98,8 @@ export interface RideSession {
   avg_speed_kmh: number;
   current_speed_kmh?: number;
   rpm?: number;
+  total_pedal_strokes?: number;
+  telemetry_history_json?: string;
   calories_burned: number;
   resistance_level?: number;
   heart_rate_avg?: number;
@@ -105,6 +107,49 @@ export interface RideSession {
   notes?: string;
   created_at: string;
   updated_at?: string;
+}
+
+export interface TelemetryPoint {
+  sec: number;
+  speed: number;
+  rpm: number;
+  km: number;
+  watts: number;
+}
+
+export interface RideSplit {
+  km: number;
+  duration_seconds: number;
+  avg_speed_kmh: number;
+  avg_rpm: number;
+  avg_watts: number;
+}
+
+export interface IntensityZones {
+  zone1_recovery_sec: number;
+  zone2_aerobic_sec: number;
+  zone3_threshold_sec: number;
+  zone1_pct: number;
+  zone2_pct: number;
+  zone3_pct: number;
+}
+
+export interface RidePerformanceData {
+  ride_id: number;
+  duration_seconds: number;
+  distance_km: number;
+  avg_speed_kmh: number;
+  max_speed_kmh: number;
+  avg_rpm: number;
+  max_rpm: number;
+  total_pedal_strokes: number;
+  calories_burned: number;
+  avg_watts: number;
+  max_watts: number;
+  resistance_level: number;
+  zones: IntensityZones;
+  splits: RideSplit[];
+  telemetry_points: TelemetryPoint[];
 }
 
 

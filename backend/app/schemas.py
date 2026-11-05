@@ -291,6 +291,7 @@ class RideSessionCreate(BaseModel):
     calories_burned: Optional[float] = None
     resistance_level: Optional[int] = 1
     heart_rate_avg: Optional[int] = None
+    total_pedal_strokes: Optional[int] = None
     notes: Optional[str] = None
     photo_path: Optional[str] = None
     journey_id: Optional[int] = None
@@ -307,6 +308,8 @@ class RideSessionResponse(BaseModel):
     avg_speed_kmh: float
     current_speed_kmh: Optional[float] = None
     rpm: Optional[float] = None
+    total_pedal_strokes: Optional[int] = None
+    telemetry_history_json: Optional[str] = None
     calories_burned: float
     resistance_level: Optional[int] = 1
     heart_rate_avg: Optional[int] = None
@@ -314,6 +317,48 @@ class RideSessionResponse(BaseModel):
     photo_path: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+class RideMergeRequest(BaseModel):
+    ride_ids: List[int]
+
+class TelemetryPoint(BaseModel):
+    sec: int
+    speed: float
+    rpm: float
+    km: float
+    watts: float
+
+class RideSplit(BaseModel):
+    km: int
+    duration_seconds: int
+    avg_speed_kmh: float
+    avg_rpm: float
+    avg_watts: float
+
+class IntensityZones(BaseModel):
+    zone1_recovery_sec: int  # <15 km/h
+    zone2_aerobic_sec: int   # 15-22 km/h
+    zone3_threshold_sec: int # >22 km/h
+    zone1_pct: float
+    zone2_pct: float
+    zone3_pct: float
+
+class RidePerformanceResponse(BaseModel):
+    ride_id: int
+    duration_seconds: int
+    distance_km: float
+    avg_speed_kmh: float
+    max_speed_kmh: float
+    avg_rpm: float
+    max_rpm: float
+    total_pedal_strokes: int
+    calories_burned: float
+    avg_watts: float
+    max_watts: float
+    resistance_level: int
+    zones: IntensityZones
+    splits: List[RideSplit]
+    telemetry_points: List[TelemetryPoint]
 
 class AIAnalyzeDisplayResponse(BaseModel):
     distance_km: Optional[float] = None

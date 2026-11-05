@@ -181,6 +181,8 @@ class RideSession(Base):
     calories_burned = Column(Float, default=0.0)        # stima calorie bruciate
     resistance_level = Column(Integer, default=1)       # livello resistenza cyclette (1-8)
     heart_rate_avg = Column(Integer, nullable=True)
+    total_pedal_strokes = Column(Integer, default=0, nullable=True)
+    telemetry_history_json = Column(Text, nullable=True)
     photo_path = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -145,3 +145,201 @@ def calculate_journey_calories(distance_km: float, profile: Optional[UserProfile
     # Consumo medio realistico su cyclette: ~18-28 kcal per km in base al peso
     kcal_per_km = 16.0 + max(0.0, (weight - 60.0)) * 0.12
     return int(round(distance_km * kcal_per_km))
+
+
+def calculate_mechanical_watts(speed_kmh: float, resistance_level: int = 1) -> float:
+    """Calcola la potenza meccanica istantanea erogata sui pedali (Watts)"""
+    clamped_speed = max(0.0, min(50.0, speed_kmh))
+    base_watts = 10.0 + 3.8 * clamped_speed
+    clamped_res = max(1, min(8, resistance_level))
+    res_factor = 0.75 + (clamped_res - 1) * 0.0914
+    return round(base_watts * res_factor, 1)
+
+
+def append_telemetry_tick(
+    existing_json: Optional[str],
+    sec: int,
+    speed: float,
+    rpm: float,
+    km: float,
+    resistance: int = 1
+) -> str:
+    """Accumula in modo compatto i punti di telemetria nel corso della sessione attiva (max 250 punti)"""
+    import json
+    try:
+        ticks = json.loads(existing_json) if existing_json else []
+    except Exception:
+        ticks = []
+
+    # Campiona solo se sono trascorsi almeno 4 secondi dall'ultimo punto
+    if not ticks or (sec - ticks[-1]["sec"] >= 4):
+        watts = calculate_mechanical_watts(speed, resistance)
+        ticks.append({
+            "sec": int(sec),
+            "speed": round(float(speed), 1),
+            "rpm": round(float(rpm), 1),
+            "km": round(float(km), 3),
+            "watts": watts
+        })
+        # Se supera 250 campioni, dimezza mantenendo i punti rappresentativi
+        if len(ticks) > 250:
+            ticks = ticks[::2]
+
+    return json.dumps(ticks)
+
+
+def generate_ride_performance(ride: RideSession):
+    """Calcola le metriche analitiche e la serie temporale per il grafico prestazionale"""
+    import json
+    import math
+    from app.schemas import (
+        RidePerformanceResponse,
+        TelemetryPoint,
+        RideSplit,
+        IntensityZones
+    )
+
+    duration = max(1, ride.duration_seconds)
+    distance = max(0.01, ride.distance_km)
+    avg_speed = ride.avg_speed_kmh or round((distance / (duration / 3600.0)), 1)
+    resistance = ride.resistance_level or 1
+    total_pedals = ride.total_pedal_strokes or int(round((distance * 1000.0) / 3.50))
+    avg_rpm = ride.rpm or round((total_pedals / (duration / 60.0)), 1)
+
+    points: list[TelemetryPoint] = []
+    has_real_ticks = False
+
+    if ride.telemetry_history_json:
+        try:
+            raw_ticks = json.loads(ride.telemetry_history_json)
+            if isinstance(raw_ticks, list) and len(raw_ticks) >= 3:
+                has_real_ticks = True
+                for t in raw_ticks:
+                    points.append(TelemetryPoint(
+                        sec=int(t.get("sec", 0)),
+                        speed=float(t.get("speed", avg_speed)),
+                        rpm=float(t.get("rpm", avg_rpm)),
+                        km=float(t.get("km", 0.0)),
+                        watts=float(t.get("watts", calculate_mechanical_watts(t.get("speed", avg_speed), resistance)))
+                    ))
+        except Exception:
+            has_real_ticks = False
+
+    # Se non ci sono punti registrati, genera un profilo analitico realistico (pacing fisiologico)
+    if not has_real_ticks:
+        num_points = min(60, max(15, duration // 30))
+        step_sec = max(1, duration // num_points)
+        for i in range(num_points + 1):
+            t_sec = min(duration, i * step_sec)
+            progress_ratio = t_sec / float(duration) if duration > 0 else 1.0
+
+            # Modello fisiologico: riscaldamento primi 10%, passo costante con variazioni, eventuale allungo finale
+            if progress_ratio < 0.10:
+                pacing = 0.70 + (progress_ratio / 0.10) * 0.30
+            elif progress_ratio > 0.90:
+                pacing = 1.0 + ((progress_ratio - 0.90) / 0.10) * 0.15
+            else:
+                # Piccola ondulazione naturale sinusoidale
+                wave = math.sin(progress_ratio * math.pi * 6) * 0.06
+                pacing = 1.0 + wave
+
+            p_speed = round(max(3.0, avg_speed * pacing), 1)
+            p_rpm = round(max(15.0, avg_rpm * pacing), 1)
+            p_km = round(distance * progress_ratio, 3)
+            p_watts = calculate_mechanical_watts(p_speed, resistance)
+
+            points.append(TelemetryPoint(
+                sec=t_sec,
+                speed=p_speed,
+                rpm=p_rpm,
+                km=p_km,
+                watts=p_watts
+            ))
+
+    speeds = [p.speed for p in points]
+    rpms = [p.rpm for p in points]
+    watts_list = [p.watts for p in points]
+
+    max_speed = max(speeds) if speeds else avg_speed
+    max_rpm = max(rpms) if rpms else avg_rpm
+    max_watts = max(watts_list) if watts_list else calculate_mechanical_watts(max_speed, resistance)
+    avg_watts = round(sum(watts_list) / len(watts_list), 1) if watts_list else calculate_mechanical_watts(avg_speed, resistance)
+
+    # Calcolo tempo nelle 3 zone di intensità
+    z1_sec, z2_sec, z3_sec = 0, 0, 0
+    for i in range(len(points)):
+        p = points[i]
+        dt = (points[i+1].sec - p.sec) if (i + 1 < len(points)) else max(1, duration - p.sec)
+        if p.speed < 15.0:
+            z1_sec += dt
+        elif p.speed <= 22.0:
+            z2_sec += dt
+        else:
+            z3_sec += dt
+
+    tot_z = max(1, z1_sec + z2_sec + z3_sec)
+    zones = IntensityZones(
+        zone1_recovery_sec=z1_sec,
+        zone2_aerobic_sec=z2_sec,
+        zone3_threshold_sec=z3_sec,
+        zone1_pct=round((z1_sec / tot_z) * 100.0, 1),
+        zone2_pct=round((z2_sec / tot_z) * 100.0, 1),
+        zone3_pct=round((z3_sec / tot_z) * 100.0, 1)
+    )
+
+    # Calcolo split per km
+    splits: list[RideSplit] = []
+    total_full_kms = int(math.floor(distance))
+    prev_split_sec = 0
+    prev_split_km = 0.0
+
+    for target_km in range(1, total_full_kms + 1):
+        # Trova il punto in cui si supera target_km
+        cross_point = next((p for p in points if p.km >= target_km), None)
+        if cross_point:
+            split_dur = max(1, cross_point.sec - prev_split_sec)
+            split_dist = target_km - prev_split_km
+            split_speed = round(split_dist / (split_dur / 3600.0), 1) if split_dur > 0 else avg_speed
+            split_rpm = cross_point.rpm
+            split_w = cross_point.watts
+            splits.append(RideSplit(
+                km=target_km,
+                duration_seconds=split_dur,
+                avg_speed_kmh=split_speed,
+                avg_rpm=split_rpm,
+                avg_watts=split_w
+            ))
+            prev_split_sec = cross_point.sec
+            prev_split_km = target_km
+
+    # Split frazionario finale se residuo >= 0.2 km
+    remainder_dist = round(distance - prev_split_km, 2)
+    if remainder_dist >= 0.2:
+        rem_dur = max(1, duration - prev_split_sec)
+        rem_speed = round(remainder_dist / (rem_dur / 3600.0), 1) if rem_dur > 0 else avg_speed
+        splits.append(RideSplit(
+            km=total_full_kms + 1,
+            duration_seconds=rem_dur,
+            avg_speed_kmh=rem_speed,
+            avg_rpm=avg_rpm,
+            avg_watts=avg_watts
+        ))
+
+    return RidePerformanceResponse(
+        ride_id=ride.id,
+        duration_seconds=duration,
+        distance_km=round(distance, 2),
+        avg_speed_kmh=round(avg_speed, 1),
+        max_speed_kmh=round(max_speed, 1),
+        avg_rpm=round(avg_rpm, 1),
+        max_rpm=round(max_rpm, 1),
+        total_pedal_strokes=total_pedals,
+        calories_burned=round(ride.calories_burned, 1),
+        avg_watts=avg_watts,
+        max_watts=max_watts,
+        resistance_level=resistance,
+        zones=zones,
+        splits=splits,
+        telemetry_points=points
+    )
+

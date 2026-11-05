@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models import User, RideSession, UserJourneyProgress
 from app.services.gamification import record_ride_progress, format_progress_response
-from app.services.metrics import calculate_ride_calories
+from app.services.metrics import calculate_ride_calories, append_telemetry_tick
 from app.routers.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -148,6 +148,9 @@ class MQTTService:
                 if latest_ride:
                     active_ride = latest_ride
 
+            pulses = data.get("pulses")
+            total_pedals = int(pulses) if pulses is not None else int(round((distance_km * 1000.0) / 3.50))
+
             celebration = None
             progress_resp = None
 
@@ -159,8 +162,17 @@ class MQTTService:
                 active_ride.avg_speed_kmh = avg_speed_kmh
                 active_ride.current_speed_kmh = current_speed_kmh
                 active_ride.rpm = rpm
+                active_ride.total_pedal_strokes = total_pedals
                 active_ride.resistance_level = resistance_level
                 active_ride.calories_burned = cal_burned
+                active_ride.telemetry_history_json = append_telemetry_tick(
+                    existing_json=active_ride.telemetry_history_json,
+                    sec=duration_seconds,
+                    speed=current_speed_kmh or avg_speed_kmh,
+                    rpm=rpm,
+                    km=distance_km,
+                    resistance=resistance_level
+                )
                 active_ride.updated_at = datetime.utcnow()
                 if session_uid and not active_ride.session_uid:
                     active_ride.session_uid = session_uid
@@ -185,6 +197,14 @@ class MQTTService:
                 saved_ride = active_ride
             else:
                 generated_uid = session_uid or f"esp32_{user.id}_{int(datetime.utcnow().timestamp())}"
+                initial_history = append_telemetry_tick(
+                    existing_json=None,
+                    sec=duration_seconds,
+                    speed=current_speed_kmh or avg_speed_kmh,
+                    rpm=rpm,
+                    km=distance_km,
+                    resistance=resistance_level
+                )
                 ride = RideSession(
                     user_id=user.id,
                     session_uid=generated_uid,
@@ -193,6 +213,8 @@ class MQTTService:
                     avg_speed_kmh=avg_speed_kmh,
                     current_speed_kmh=current_speed_kmh,
                     rpm=rpm,
+                    total_pedal_strokes=total_pedals,
+                    telemetry_history_json=initial_history,
                     calories_burned=cal_burned,
                     resistance_level=resistance_level,
                     notes="Ricevuto via MQTT da ESP32",
@@ -222,6 +244,8 @@ class MQTTService:
                     "avg_speed_kmh": saved_ride.avg_speed_kmh,
                     "current_speed_kmh": saved_ride.current_speed_kmh,
                     "rpm": saved_ride.rpm,
+                    "total_pedal_strokes": saved_ride.total_pedal_strokes,
+                    "pulses": saved_ride.total_pedal_strokes,
                     "calories_burned": saved_ride.calories_burned,
                     "resistance_level": saved_ride.resistance_level
                 },

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, RideSession, MilestoneUnlockCelebration, UserJourneyProgress } from '../types';
-import { getRides, logRide, getActiveRide } from '../api';
+import { getRides, logRide, getActiveRide, mergeRides, deleteRide } from '../api';
 import { JourneyMap } from './JourneyMap';
+import { RidePerformanceModal } from './RidePerformanceModal';
 import {
   Bike,
   Plus,
@@ -15,7 +16,11 @@ import {
   Zap,
   Sliders,
   Radio,
-  Timer
+  Timer,
+  GitMerge,
+  BarChart2,
+  Trash2,
+  CheckSquare
 } from 'lucide-react';
 
 interface CycletteTabProps {
@@ -29,6 +34,9 @@ export const CycletteTab: React.FC<CycletteTabProps> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [celebration, setCelebration] = useState<MilestoneUnlockCelebration | null>(null);
+  const [selectedRideIds, setSelectedRideIds] = useState<number[]>([]);
+  const [isMerging, setIsMerging] = useState(false);
+  const [performanceModalRideId, setPerformanceModalRideId] = useState<number | null>(null);
 
   // Form states
   const [distanceKm, setDistanceKm] = useState<string>('');
@@ -188,12 +196,49 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
   }
 }`;
 
+  const toggleSelectRide = (id: number) => {
+    setSelectedRideIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleMergeSelected = async () => {
+    if (selectedRideIds.length < 2) return;
+    const confirm = window.confirm(
+      `Unire le ${selectedRideIds.length} sessioni selezionate in una singola sessione continua? Eventuali disconnessioni intermedie verranno colmate e la telemetria sincronizzata.`
+    );
+    if (!confirm) return;
+
+    setIsMerging(true);
+    try {
+      const merged = await mergeRides(selectedRideIds);
+      setSelectedRideIds([]);
+      await fetchRides();
+      setPerformanceModalRideId(merged.id);
+    } catch (err: any) {
+      alert(err.message || "Errore durante l'unione delle sessioni");
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const handleDeleteRide = async (rideId: number) => {
+    const confirm = window.confirm('Sei sicuro di voler eliminare questa sessione di pedalata?');
+    if (!confirm) return;
+    try {
+      await deleteRide(rideId);
+      setSelectedRideIds((prev) => prev.filter((id) => id !== rideId));
+      fetchRides();
+    } catch (err: any) {
+      alert(err.message || 'Errore durante la cancellazione della sessione');
+    }
+  };
+
   const copyCode = () => {
     navigator.clipboard.writeText(esp32SampleCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
 
   return (
     <div className="space-y-4">
@@ -213,12 +258,12 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
             </span>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 text-center">
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold truncate">
                 {activeRide.current_speed_kmh && activeRide.current_speed_kmh > 0 ? 'Velocità' : 'Media'}
               </span>
-              <span className="text-lg font-black text-emerald-400 font-mono">
+              <span className="text-base sm:text-lg font-black text-emerald-400 font-mono">
                 {activeRide.current_speed_kmh && activeRide.current_speed_kmh > 0
                   ? activeRide.current_speed_kmh.toFixed(1)
                   : activeRide.avg_speed_kmh.toFixed(1)}
@@ -227,10 +272,10 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
             </div>
 
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold truncate">
                 {activeRide.rpm && activeRide.rpm > 0 ? 'Cadenza' : 'Cad. Media'}
               </span>
-              <span className="text-lg font-black text-amber-400 font-mono">
+              <span className="text-base sm:text-lg font-black text-amber-400 font-mono">
                 {activeRide.rpm && activeRide.rpm > 0
                   ? Math.round(activeRide.rpm)
                   : (activeRide.duration_seconds > 0
@@ -241,16 +286,32 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
             </div>
 
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">Distanza</span>
-              <span className="text-lg font-black text-sky-400 font-mono">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold truncate">
+                Pedalate
+              </span>
+              <span className="text-base sm:text-lg font-black text-purple-400 font-mono">
+                {activeRide.total_pedal_strokes != null
+                  ? activeRide.total_pedal_strokes
+                  : Math.round((activeRide.distance_km * 1000) / 3.50)}
+              </span>
+              <span className="text-[9px] text-zinc-500 block">totali</span>
+            </div>
+
+            <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold truncate">
+                Distanza
+              </span>
+              <span className="text-base sm:text-lg font-black text-sky-400 font-mono">
                 {activeRide.distance_km.toFixed(2)}
               </span>
               <span className="text-[9px] text-zinc-500 block">km</span>
             </div>
 
             <div className="p-2 rounded-2xl bg-zinc-900/80 border border-white/5">
-              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold">Calorie</span>
-              <span className="text-lg font-black text-rose-400 font-mono">
+              <span className="text-[9px] uppercase tracking-wider text-zinc-400 block font-semibold truncate">
+                Calorie
+              </span>
+              <span className="text-base sm:text-lg font-black text-rose-400 font-mono">
                 {Math.round(activeRide.calories_burned)}
               </span>
               <span className="text-[9px] text-zinc-500 block">kcal</span>
@@ -448,11 +509,64 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
       </div>
 
       {/* Ride History */}
-      <div className="glass-panel-subtle rounded-3xl p-5 border border-white/5">
-        <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider mb-3 flex items-center space-x-2">
-          <History className="w-4 h-4 text-amber-400" />
-          <span>Ultime Pedalata Registrate</span>
-        </h3>
+      <div className="glass-panel-subtle rounded-3xl p-5 border border-white/5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider flex items-center space-x-2">
+            <History className="w-4 h-4 text-amber-400" />
+            <span>Ultime Pedalata Registrate</span>
+          </h3>
+
+          {rides.length >= 2 && (
+            <div className="text-[11px] text-zinc-400">
+              {selectedRideIds.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedRideIds([])}
+                  className="text-zinc-400 hover:text-zinc-200 transition underline"
+                >
+                  Deseleziona ({selectedRideIds.length})
+                </button>
+              ) : (
+                <span className="text-[10px] text-zinc-500 italic">
+                  Seleziona più sessioni per unirle
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Merge Action Banner (quando 2 o più sessioni sono selezionate) */}
+        {selectedRideIds.length >= 2 && (
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/90 via-zinc-900 to-indigo-950/90 border border-purple-500/40 shadow-xl flex items-center justify-between text-xs animate-in fade-in">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold">
+                <GitMerge className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-white block">
+                  {selectedRideIds.length} sessioni selezionate per unione
+                </span>
+                <span className="text-[10px] text-zinc-400">
+                  {rides
+                    .filter((r) => selectedRideIds.includes(r.id))
+                    .reduce((acc, r) => acc + r.distance_km, 0)
+                    .toFixed(2)}{' '}
+                  km totali combinati (disconnessioni ignorate)
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleMergeSelected}
+              disabled={isMerging}
+              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold transition flex items-center space-x-1.5 shadow-md shadow-purple-950/50 disabled:opacity-50 text-xs"
+            >
+              <GitMerge className="w-3.5 h-3.5" />
+              <span>{isMerging ? 'Unione...' : 'Unisci Sessioni'}</span>
+            </button>
+          </div>
+        )}
 
         {rides.length === 0 ? (
           <p className="text-xs text-zinc-600 italic py-2 text-center">Nessuna pedalata registrata finora.</p>
@@ -466,18 +580,39 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
                 minute: '2-digit'
               });
               const mins = Math.round(r.duration_seconds / 60);
+              const isSelected = selectedRideIds.includes(r.id);
+              const pedalStrokes = r.total_pedal_strokes ?? Math.round((r.distance_km * 1000) / 3.50);
 
               return (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between p-3 rounded-2xl bg-zinc-950/60 border border-white/5 text-xs"
+                  className={`flex items-center justify-between p-3 rounded-2xl transition border ${
+                    isSelected
+                      ? 'bg-purple-950/30 border-purple-500/50 shadow-md shadow-purple-950/20'
+                      : 'bg-zinc-950/60 border-white/5 hover:border-white/10'
+                  } text-xs`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                  <div className="flex items-center space-x-2.5 sm:space-x-3">
+                    {/* Checkbox for merge selection */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSelectRide(r.id)}
+                      className={`w-6 h-6 rounded-lg border flex items-center justify-center transition active:scale-95 flex-shrink-0 ${
+                        isSelected
+                          ? 'bg-purple-600 border-purple-400 text-white'
+                          : 'border-white/15 hover:border-zinc-400 text-transparent'
+                      }`}
+                      title={isSelected ? 'Deseleziona per unione' : 'Seleziona per unire sessioni'}
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                    </button>
+
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold flex-shrink-0">
                       <Bike className="w-4 h-4" />
                     </div>
+
                     <div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <span className="font-bold text-white text-sm">{r.distance_km} km</span>
                         <span className="text-[10px] text-zinc-500">• {mins} min</span>
                         {r.resistance_level && (
@@ -485,13 +620,48 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
                             R{r.resistance_level}
                           </span>
                         )}
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800/80 text-purple-300 border border-white/5">
+                          {pedalStrokes} ped.
+                        </span>
                       </div>
-                      <p className="text-[10px] text-zinc-400">{dateFormatted}</p>
+                      <div className="flex items-center space-x-2 text-[10px] text-zinc-400 mt-0.5">
+                        <span>{dateFormatted}</span>
+                        {r.notes && r.notes.includes('[Unite sessioni') && (
+                          <span className="text-[9px] text-purple-400 font-bold bg-purple-500/10 px-1 rounded border border-purple-500/20">
+                            Unita
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold text-emerald-400 block text-xs font-mono">-{Math.round(r.calories_burned)} kcal</span>
-                    <span className="text-[10px] text-zinc-500">{r.avg_speed_kmh} km/h</span>
+
+                  <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+                    <div className="text-right">
+                      <span className="font-bold text-emerald-400 block text-xs font-mono">
+                        -{Math.round(r.calories_burned)} kcal
+                      </span>
+                      <span className="text-[10px] text-zinc-500">{r.avg_speed_kmh} km/h</span>
+                    </div>
+
+                    {/* Performance Chart Modal Button */}
+                    <button
+                      type="button"
+                      onClick={() => setPerformanceModalRideId(r.id)}
+                      className="w-8 h-8 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 flex items-center justify-center transition active:scale-95 shadow-sm"
+                      title="Visualizza Grafico Prestazioni e Zone Cardio"
+                    >
+                      <BarChart2 className="w-4 h-4" />
+                    </button>
+
+                    {/* Delete Ride Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteRide(r.id)}
+                      className="w-7 h-7 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 flex items-center justify-center transition active:scale-95"
+                      title="Elimina sessione"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               );
@@ -499,6 +669,14 @@ void sendMqttTelemetry(const char* user, const String& sessionUid, float km, flo
           </div>
         )}
       </div>
+
+      {/* Ride Performance Chart Modal */}
+      {performanceModalRideId !== null && (
+        <RidePerformanceModal
+          rideId={performanceModalRideId}
+          onClose={() => setPerformanceModalRideId(null)}
+        />
+      )}
     </div>
   );
 };

@@ -11,8 +11,28 @@ from app.services.gamification import seed_default_journeys
 from app.services.mqtt_service import mqtt_service
 from app.routers import auth, profile, nutrition, rides, journeys, websocket
 
+from sqlalchemy import inspect, text
+
 # Crea le tabelle nel database
 Base.metadata.create_all(bind=engine)
+
+def run_migrations(db_engine):
+    """Esegue migrazioni automatiche incrementali sulle tabelle SQLite esistenti"""
+    try:
+        inspector = inspect(db_engine)
+        if "ride_sessions" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("ride_sessions")]
+            with db_engine.connect() as conn:
+                if "total_pedal_strokes" not in columns:
+                    conn.execute(text("ALTER TABLE ride_sessions ADD COLUMN total_pedal_strokes INTEGER DEFAULT 0"))
+                    conn.commit()
+                if "telemetry_history_json" not in columns:
+                    conn.execute(text("ALTER TABLE ride_sessions ADD COLUMN telemetry_history_json TEXT"))
+                    conn.commit()
+    except Exception as e:
+        print(f"[Migration Warning]: {e}")
+
+run_migrations(engine)
 
 # Inizializza i percorsi di default
 with SessionLocal() as db:
