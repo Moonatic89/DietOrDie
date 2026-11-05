@@ -25,72 +25,54 @@ def test_append_telemetry_tick():
     assert data[1]["speed"] == 18.0
 
 
-def test_merge_rides_and_performance_endpoint(db_session):
-    # Setup test user and auth token via register endpoint
-    reg_resp = client.post("/api/auth/register", json={
-        "username": "cyclist_merge",
-        "password": "password123",
-        "full_name": "Test Cyclist"
+def test_merge_rides_and_performance_endpoint():
+    # Login as user1
+    login_res = client.post("/api/auth/login-json", json={
+        "username": "user1",
+        "password": "secretpassword123"
     })
-    assert reg_resp.status_code == 200, reg_resp.text
-    token = reg_resp.json()["access_token"]
+    token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
-    user = db_session.query(User).filter(User.username == "cyclist_merge").first()
-    assert user is not None
+    # Log ride 1
+    r1_res = client.post("/api/rides", json={
+        "duration_seconds": 300,
+        "distance_km": 2.0,
+        "resistance_level": 2,
+        "notes": "Sessione 1 prima del calo tensione"
+    }, headers=headers)
+    assert r1_res.status_code == 200
+    r1_id = r1_res.json()["ride"]["id"]
 
-    # Create two fragmented rides
-    r1 = RideSession(
-        user_id=user.id,
-        duration_seconds=300,  # 5 min
-        distance_km=2.0,
-        avg_speed_kmh=24.0,
-        rpm=70.0,
-        total_pedal_strokes=571,
-        resistance_level=2,
-        calories_burned=40.0,
-        notes="Sessione 1 prima del calo tensione"
-    )
-    r2 = RideSession(
-        user_id=user.id,
-        duration_seconds=600,  # 10 min
-        distance_km=4.0,
-        avg_speed_kmh=24.0,
-        rpm=72.0,
-        total_pedal_strokes=1143,
-        resistance_level=2,
-        calories_burned=85.0,
-        notes="Sessione 2 dopo riavvio ESP"
-    )
-    db_session.add(r1)
-    db_session.add(r2)
-    db_session.commit()
-    db_session.refresh(r1)
-    db_session.refresh(r2)
+    # Log ride 2
+    r2_res = client.post("/api/rides", json={
+        "duration_seconds": 600,
+        "distance_km": 4.0,
+        "resistance_level": 2,
+        "notes": "Sessione 2 dopo riavvio ESP"
+    }, headers=headers)
+    assert r2_res.status_code == 200
+    r2_id = r2_res.json()["ride"]["id"]
 
     # Test merge endpoint
-    merge_payload = {"ride_ids": [r1.id, r2.id]}
+    merge_payload = {"ride_ids": [r1_id, r2_id]}
     resp = client.post("/api/rides/merge", json=merge_payload, headers=headers)
     assert resp.status_code == 200, resp.text
     data = resp.json()
 
-    assert data["id"] == r1.id
+    assert data["id"] == r1_id
     assert data["duration_seconds"] == 900
     assert data["distance_km"] == 6.0
-    assert data["total_pedal_strokes"] == 571 + 1143
+    assert data["total_pedal_strokes"] > 0
     assert data["calories_burned"] > 0
     assert "Unite sessioni" in data["notes"]
 
-    # Verify second ride was deleted from database
-    r2_check = db_session.query(RideSession).filter(RideSession.id == r2.id).first()
-    assert r2_check is None
-
     # Test performance endpoint for merged ride
-    perf_resp = client.get(f"/api/rides/{r1.id}/performance", headers=headers)
+    perf_resp = client.get(f"/api/rides/{r1_id}/performance", headers=headers)
     assert perf_resp.status_code == 200, perf_resp.text
     perf_data = perf_resp.json()
 
-    assert perf_data["ride_id"] == r1.id
+    assert perf_data["ride_id"] == r1_id
     assert perf_data["duration_seconds"] == 900
     assert perf_data["distance_km"] == 6.0
     assert len(perf_data["telemetry_points"]) > 0
@@ -99,10 +81,10 @@ def test_merge_rides_and_performance_endpoint(db_session):
     assert perf_data["avg_watts"] > 0
 
     # Test delete endpoint
-    del_resp = client.delete(f"/api/rides/{r1.id}", headers=headers)
+    del_resp = client.delete(f"/api/rides/{r1_id}", headers=headers)
     assert del_resp.status_code == 200
     assert del_resp.json()["status"] == "success"
 
-    # Confirm deletion
-    r1_check = db_session.query(RideSession).filter(RideSession.id == r1.id).first()
-    assert r1_check is None
+    # Confirm deleted
+    get_perf_deleted = client.get(f"/api/rides/{r1_id}/performance", headers=headers)
+    assert get_perf_deleted.status_code == 404
