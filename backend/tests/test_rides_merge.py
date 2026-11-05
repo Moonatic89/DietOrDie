@@ -26,20 +26,18 @@ def test_append_telemetry_tick():
 
 
 def test_merge_rides_and_performance_endpoint(db_session):
-    # Setup test user and auth token
-    user = User(
-        username="cyclist1",
-        email="cyclist1@example.com",
-        password_hash=get_password_hash("password123"),
-        weight_kg=75.0,
-        height_cm=175.0
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    token = create_access_token(data={"sub": user.username})
+    # Setup test user and auth token via register endpoint
+    reg_resp = client.post("/api/auth/register", json={
+        "username": "cyclist_merge",
+        "password": "password123",
+        "full_name": "Test Cyclist"
+    })
+    assert reg_resp.status_code == 200, reg_resp.text
+    token = reg_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
+
+    user = db_session.query(User).filter(User.username == "cyclist_merge").first()
+    assert user is not None
 
     # Create two fragmented rides
     r1 = RideSession(
