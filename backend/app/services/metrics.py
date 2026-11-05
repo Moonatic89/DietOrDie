@@ -1,6 +1,6 @@
 from datetime import date
-from typing import Optional, Tuple
-from app.models import UserProfile
+from typing import Optional, Tuple, Any
+from app.models import UserProfile, RideSession
 from app.schemas import HealthMetricsResponse
 
 def calculate_bmi(weight_kg: float, height_cm: float) -> Tuple[float, str]:
