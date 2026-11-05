@@ -1,4 +1,5 @@
 import pytest
+from tests.conftest import client
 from app.models import User, RideSession
 from app.auth import get_password_hash, create_access_token
 from app.services.metrics import calculate_mechanical_watts, append_telemetry_tick, generate_ride_performance
@@ -24,7 +25,7 @@ def test_append_telemetry_tick():
     assert data[1]["speed"] == 18.0
 
 
-def test_merge_rides_and_performance_endpoint(client, db_session):
+def test_merge_rides_and_performance_endpoint(db_session):
     # Setup test user and auth token
     user = User(
         username="cyclist1",
